@@ -7,7 +7,10 @@ import (
 	"filmDb/internal/repository/postgres/movies"
 	"filmDb/pkg/modules"
 	"log"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -33,6 +36,7 @@ func Run() {
 	movieHandler := handlers.NewMovieHandler(movieRepo)
 
 	r := gin.Default()
+
 	r.POST("/movies", movieHandler.Create)
 	r.GET("/movies", movieHandler.GetAllMovies)
 	r.GET("/movie/search", movieHandler.Search)
@@ -40,10 +44,35 @@ func Run() {
 	r.PATCH("/movie", movieHandler.UpdateRating)
 	r.DELETE("/movie/:id", movieHandler.DeleteMovieByTitle)
 
-	err = r.Run("0.0.0.0:8080")
-	if err != nil {
-		return
+	srv := &http.Server{
+		Addr:    ":8080",
+		Handler: r,
 	}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Listen %v", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("shutting down server...")
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Fatal("server forced to shutdown:", err)
+	}
+
+	err = pg.DB.Close()
+	if err != nil {
+		log.Fatalf("problem %v", err)
+	}
+	log.Println("server exited")
 
 }
 
