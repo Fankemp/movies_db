@@ -15,7 +15,7 @@ COPY --from=builder /app/main .
 
 COPY --from=builder /build/database/migrations ./database/migrations
 
-COPY .env.docker ./.env.docker
+COPY .env .
 
 EXPOSE 8080
 CMD ["./main"]

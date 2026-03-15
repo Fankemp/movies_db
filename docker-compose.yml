@@ -1,5 +1,5 @@
 services:
-  db:
+  db_movie:
     image: postgres:alpine
     container_name: movies_service
     restart: always
@@ -25,11 +25,13 @@ services:
     ports:
       - "8080:8080"
     env_file:
-      - .env.docker
+      - .env
     environment:
-      DB_URL: postgres://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}?sslmode=disable
+      DB_HOST: db_movie
+      DB_PORT: 5432
+      DB_URL: postgres://${DB_USER}:${DB_PASSWORD}@db_movie:5432/${DB_NAME}?sslmode=disable
     depends_on:
-      db:
+      db_movie:
         condition: service_healthy
 volumes:
   postgres_data:

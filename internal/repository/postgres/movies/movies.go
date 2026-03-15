@@ -37,7 +37,7 @@ func (r *Repository) DeleteMovie(ctx context.Context, id int) error {
 	ctx, cancel := context.WithTimeout(ctx, r.executionTimeout)
 	defer cancel()
 
-	query := `DELETE FROM movies WHERE id = $1`
+	query := `UPDATE movies SET deleted_at = NOW() WHERE id = $1`
 	result, err := r.db.DB.ExecContext(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("error with delete: %w", err)
@@ -49,102 +49,10 @@ func (r *Repository) DeleteMovie(ctx context.Context, id int) error {
 	}
 
 	if row == 0 {
-		return fmt.Errorf("there is not movie in DB: %w", err)
+		return fmt.Errorf("movie with id %d not found", id)
 	}
 
 	return nil
-}
-
-func (r *Repository) GetAllMovie(ctx context.Context) ([]modules.Movie, error) {
-	ctx, cancel := context.WithTimeout(ctx, r.executionTimeout)
-	defer cancel()
-
-	var movies []modules.Movie
-
-	query := `SELECT id, original_title, original_language, 
-          overview, release_date, vote_average, vote_count
-			   FROM movies`
-	err := r.db.DB.SelectContext(ctx, &movies, query)
-	if err != nil {
-		return nil, err
-	}
-
-	return movies, nil
-}
-
-func (r *Repository) GetByTitle(ctx context.Context, title string) (*modules.Movie, error) {
-	ctx, cancel := context.WithTimeout(ctx, r.executionTimeout)
-	defer cancel()
-
-	var movie modules.Movie
-
-	query := `SELECT id, original_title, original_language, 
-          overview, release_date, vote_average, vote_count 
-          FROM movies 
-          WHERE original_title ILIKE $1 
-          LIMIT 1`
-	err := r.db.DB.GetContext(ctx, &movie, query, title)
-	if err != nil {
-		return nil, err
-	}
-
-	return &movie, nil
-}
-
-func (r *Repository) GetByDate(ctx context.Context, release time.Time) ([]modules.Movie, error) {
-	ctx, cancel := context.WithTimeout(ctx, r.executionTimeout)
-	defer cancel()
-
-	var movie []modules.Movie
-
-	query := `SELECT id, original_title, original_language, 
-          overview, release_date, vote_average, vote_count 
-          FROM movies 
-          WHERE release_date  = $1::date`
-
-	err := r.db.DB.SelectContext(ctx, &movie, query, release)
-	if err != nil {
-		return nil, err
-	}
-
-	return movie, nil
-}
-
-func (r *Repository) GetByLanguage(ctx context.Context, language string) ([]modules.Movie, error) {
-	ctx, cancel := context.WithTimeout(ctx, r.executionTimeout)
-	defer cancel()
-
-	var movies []modules.Movie
-
-	query := `SELECT id, original_title, original_language, 
-          overview, release_date, vote_average, vote_count 
-			  FROM movies
-			  WHERE original_language = $1`
-	err := r.db.DB.SelectContext(ctx, &movies, query, language)
-	if err != nil {
-		return nil, err
-	}
-
-	return movies, nil
-}
-
-func (r *Repository) GetByRating(ctx context.Context, rating float64) ([]modules.Movie, error) {
-	ctx, cancel := context.WithTimeout(ctx, r.executionTimeout)
-	defer cancel()
-
-	var movies []modules.Movie
-
-	query := `SELECT id, original_title, original_language, 
-          overview, release_date, vote_average, vote_count
-				FROM movies
-				WHERE vote_average = $1`
-
-	err := r.db.DB.SelectContext(ctx, &movies, query, rating)
-	if err != nil {
-		return nil, err
-	}
-
-	return movies, nil
 }
 
 func (r *Repository) UpdateRating(ctx context.Context, title string, rating float64) error {
@@ -176,4 +84,92 @@ func (r *Repository) GetMovieById(ctx context.Context, id int) (modules.Movie, e
 	}
 
 	return movie, nil
+}
+
+func (r *Repository) GetDeletedMovies(ctx context.Context) ([]modules.Movie, error) {
+	ctx, cancel := context.WithTimeout(ctx, r.executionTimeout)
+	defer cancel()
+
+	movieDeleted := make([]modules.Movie, 0)
+
+	query := `SELECT * FROM movies WHERE deleted_at IS NOT NULL`
+	err := r.db.DB.SelectContext(ctx, &movieDeleted, query)
+	if err != nil {
+		return nil, err
+	}
+
+	return movieDeleted, nil
+}
+
+func (r *Repository) GetPaginatedMovie(
+	ctx context.Context,
+	genre string,
+	title string,
+	rating float64,
+	orderBy string,
+	limit int,
+	offset int,
+) ([]modules.Movie, error) {
+	ctx, cancel := context.WithTimeout(ctx, r.executionTimeout)
+	defer cancel()
+
+	moviePaginated := make([]modules.Movie, 0)
+	args := make([]interface{}, 0)
+	query := `SELECT * FROM movies WHERE 1=1 AND deleted_at IS NULL`
+
+	if genre != "" {
+		args = append(args, genre)
+		query += fmt.Sprintf(` AND genre = $%d`, len(args))
+	}
+
+	if title != "" {
+		args = append(args, title)
+		query += fmt.Sprintf(` AND original_title ILIKE $%d`, len(args))
+	}
+
+	if rating > 0 {
+		args = append(args, rating)
+		query += fmt.Sprintf(`AND vote_average >= $%d`, len(args))
+	}
+
+	allowedOrderBy := map[string]bool{
+		"id":           true,
+		"vote_average": true,
+		"release_data": true,
+		"vote_count":   true,
+	}
+
+	if !allowedOrderBy[orderBy] {
+		orderBy = "vote_average"
+	}
+	query += fmt.Sprintf(` ORDER BY %s`, orderBy)
+
+	args = append(args, limit, offset)
+	query += fmt.Sprintf(` LIMIT $%d OFFSET $%d`, len(args)-1, len(args))
+
+	err := r.db.DB.SelectContext(ctx, &moviePaginated, query, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	return moviePaginated, nil
+}
+
+func (r *Repository) GetCommonRelated(ctx context.Context, movieID1, movieID2 int) ([]modules.Movie, error) {
+	ctx, cancel := context.WithTimeout(ctx, r.executionTimeout)
+	defer cancel()
+	moviesRelated := make([]modules.Movie, 0)
+
+	query := `SELECT m.*
+			  FROM movies m
+			  JOIN movie_related mr1 ON m.id = mr1.related_id
+			  JOIN movie_related mr2 ON m.id = mr2.related_id 
+			  WHERE mr1.movie_id = $1 AND mr2.movie_id = $2
+			  `
+	err := r.db.DB.SelectContext(ctx, &moviesRelated, query, movieID1, movieID2)
+	if err != nil {
+		return nil, err
+	}
+
+	return moviesRelated, nil
 }

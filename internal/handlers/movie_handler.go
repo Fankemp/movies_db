@@ -37,48 +37,38 @@ func (h *MovieHandler) Create(c *gin.Context) {
 }
 
 func (h *MovieHandler) GetAllMovies(c *gin.Context) {
-	moviesAll, err := h.repo.GetAllMovie(c.Request.Context())
+	title := c.Query("title")
+	genre := c.Query("genre")
+	orderBy := c.Query("order_by")
+
+	limit, err := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid limits"})
+		return
+	}
+
+	offset, err := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid offset"})
+		return
+	}
+
+	var rating float64
+	if ratingStr := c.Query("rating"); ratingStr != "" {
+		rating, err = strconv.ParseFloat(ratingStr, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid rating"})
+			return
+		}
+	}
+
+	moviesPaginated, err := h.repo.GetPaginatedMovie(c.Request.Context(), genre, title, rating, orderBy, limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
 
-	c.JSON(http.StatusOK, moviesAll)
-}
-
-func (h *MovieHandler) Search(c *gin.Context) {
-	title := c.Query("title")
-	ratingStr := c.Query("rating")
-
-	if title != "" {
-		movieByTitle, err := h.repo.GetByTitle(c.Request.Context(), title)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "we cant find the movie"})
-			return
-		}
-
-		c.JSON(http.StatusOK, movieByTitle)
-		return
-	}
-
-	if ratingStr != "" {
-		rating, err := strconv.ParseFloat(ratingStr, 64)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "rating should be a number"})
-			return
-		}
-
-		moviesByTitle, err := h.repo.GetByRating(c.Request.Context(), rating)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "some problem with DB"})
-			return
-		}
-
-		c.JSON(http.StatusOK, moviesByTitle)
-		return
-	}
-
-	c.JSON(http.StatusBadRequest, gin.H{"error": "write title or rating"})
+	c.JSON(http.StatusOK, moviesPaginated)
 }
 
 func (h *MovieHandler) UpdateRating(c *gin.Context) {
@@ -134,5 +124,35 @@ func (h *MovieHandler) GetMovieById(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, movieId)
+}
+func (h *MovieHandler) GetCommonRelated(c *gin.Context) {
+	id1, err := strconv.Atoi(c.Query("movie_id1"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid movie_id1"})
+		return
+	}
 
+	id2, err := strconv.Atoi(c.Query("movie_id2"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid movie_id2"})
+		return
+	}
+
+	movieCommonRelated, err := h.repo.GetCommonRelated(c.Request.Context(), id1, id2)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, movieCommonRelated)
+}
+
+func (h *MovieHandler) GetDeletedMovie(c *gin.Context) {
+	movieDeleted, err := h.repo.GetDeletedMovies(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, movieDeleted)
 }

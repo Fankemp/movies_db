@@ -50,7 +50,11 @@ func AutoMigrate(dsn string) error {
 		return fmt.Errorf("failed to migrate: %w", err)
 	}
 
-	if err = m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+	if err = m.Up(); err != nil {
+		if errors.Is(err, migrate.ErrNoChange) {
+			log.Println("no new migration")
+			return nil
+		}
 		return fmt.Errorf("failed to apply migrations: %w", err)
 	}
 

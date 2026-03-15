@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="DataSourcePerFileMappings">
+    <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/f39156d5-c7cf-4ddf-a3e3-e003fd98560e" value="f39156d5-c7cf-4ddf-a3e3-e003fd98560e" />
+    <file url="file://$PROJECT_DIR$/database/migrations/000002_add_genre_to_movies.down.sql" value="f39156d5-c7cf-4ddf-a3e3-e003fd98560e" />
+    <file url="file://$PROJECT_DIR$/database/migrations/000002_add_genre_to_movies.up.sql" value="f39156d5-c7cf-4ddf-a3e3-e003fd98560e" />
+    <file url="file://$PROJECT_DIR$/database/migrations/000003_create_movie_related.up.sql" value="f39156d5-c7cf-4ddf-a3e3-e003fd98560e" />
+    <file url="file://$PROJECT_DIR$/internal/repository/postgres/movies/movies.go" value="f39156d5-c7cf-4ddf-a3e3-e003fd98560e" />
+  </component>
+</project>

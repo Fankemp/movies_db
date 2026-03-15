@@ -39,9 +39,10 @@ func Run() {
 
 	r.POST("/movies", movieHandler.Create)
 	r.GET("/movies", movieHandler.GetAllMovies)
-	r.GET("/movie/search", movieHandler.Search)
-	r.GET("/movie/:id", movieHandler.GetMovieById)
-	r.PATCH("/movie", movieHandler.UpdateRating)
+	r.GET("/movies/:id", movieHandler.GetMovieById)
+	r.GET("movies/common", movieHandler.GetCommonRelated)
+	r.GET("movies/deleted", movieHandler.GetDeletedMovie)
+	r.PATCH("/movies", movieHandler.UpdateRating)
 	r.DELETE("/movie/:id", movieHandler.DeleteMovieByTitle)
 
 	srv := &http.Server{
